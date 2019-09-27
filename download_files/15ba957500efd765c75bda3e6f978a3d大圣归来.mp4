@@ -1,0 +1,225 @@
+123333333333333333333333333333333333331233333333333333333333333333333333333312333333333333333333333333333333333333
+123333333333333333333333333333333333331233333333333333333333333333333333333312333333333333333333333333333333333333
+1233333333333333333333333333333333333312333333333333333333333333333333333333
+12333333333333333333333333333333333333
+12333333from django.shortcuts import render
+from django.shortcuts import HttpResponse,redirect,reverse
+from app01 import models
+
+# Create your views here.
+
+
+呜呜呜呜呜呜呜呜无无无无无无无无无无无无无无无无无无无无无无无无无无无无无无无无无
+
+
+from django import forms
+
+class LoginForm(forms.Form):
+    username=forms.CharField(max_length=8,min_length=3,label='用户名:',
+                                            error_messages = {
+                                                'max_length': '用户名最大八位',
+                                                'min_length': '用户名最小三位',
+                                                'required': '用户名不能为空'
+                                            })
+    password=forms.CharField(max_length=5,min_length=1,label='密码:')
+    email=forms.EmailField(label='邮箱:')
+
+
+
+def test(request):
+    # 1 现生成一个空的自定义类的对象
+    form_obj = LoginForm()
+    # 2 后面会将该对象传递给前端页面
+    if request.method == 'POST':
+        # 3 获取前端post请求提交过来的数据
+        print(request.POST)  # 由于request.POST其实也是一个字典 所有可以直接传给LoginForm
+        form_obj = LoginForm(request.POST)
+        print(form_obj)
+        # 4 校验数据  让forms组件帮你去校验
+        if form_obj.is_valid():
+            # 5 如果数据全部通过 应该写入数据库
+            pass
+        # 6 如果不通过 一个像前端展示错误信息
+    return render(request, 'test.html', locals())
+
+    # return HttpResponse('test')
+
+
+
+from functools import wraps
+def login_auth(func):
+    @wraps(func)
+    def inner(request,*args,**kwargs):
+        url=request.get_full_path()
+        print(url)
+        if request.COOKIES.get('name'):
+            res=func(request,*args,**kwargs)
+            return res
+        else:
+            return redirect('/?next=%s'%url)
+    return inner
+
+
+def login(request):
+    if request.method=='POST':
+        username=request.POST.get('username')
+        password=request.POST.get('password')
+        user_obj=models.User.objects.filter(name=username,password=password).first()
+        if user_obj:
+            id=user_obj.id
+            print('成功登录!')
+            url = request.GET.get('next')
+            if not url:
+                res = reverse('home', args=(id,))
+                http_obj = redirect(res)
+            else:
+                http_obj = redirect(url)
+            http_obj.set_cookie('name', 'zheshigemimi')
+            return http_obj
+        else:
+            return HttpResponse('登录失败')
+    return render(request, 'login.html')
+
+
+def register(request):
+    if request.method=='POST':
+        username=request.POST.get('username')
+        password=request.POST.get('password')
+        url=reverse('userlist_test')
+        res=models.User.objects.create(name=username,password=password)
+        if res:
+            return redirect(url)
+    return render(request,'register.html')
+
+
+def userlist(request):
+    user_list=models.User.objects.all()
+    if not user_list:
+        return HttpResponse('还没有用户')
+
+    return render(request,'userlist.html',{'user_list':user_list})
+
+
+from django.http import JsonResponse
+def delete_user(request,xxx):
+
+    if request.is_ajax():
+        back_dict={'code':100,'msg':''}
+        # 获取要删除的用户的id
+        delete_id=request.POST.get('delete_id')
+
+        models.User.objects.filter(pk=delete_id).delete()
+        back_dict['msg']='真的删除了'
+        return JsonResponse(back_dict)
+
+
+def edit(request,edit_id):
+    if request.method=='POST':
+
+        username=request.POST.get('username')
+        password=request.POST.get('password')
+
+        res=models.User.objects.filter(id=edit_id).update(name=username,password=password)
+
+
+        if res:
+            return redirect('/userlist/')
+        else:
+            return redirect('/userlist/')
+
+
+
+    user_obj=models.User.objects.filter(id=edit_id).first()
+
+    return render(request,'edit.html',{'user_obj':user_obj})
+
+
+def insert_user(request):
+    return redirect('/register/')
+
+
+def check_self(request,user_id):
+
+    user_obj=models.User.objects.filter(id=user_id).first()
+    return render(request,'userinfo.html',{'user_obj':user_obj})
+
+#--------------书籍-------------------
+def book_manage(request,user_id):
+
+    res=models.User.objects.filter(pk=user_id).exists()
+    if not res:
+        login_url= reverse('login_test')
+        return redirect(login_url)
+
+    user_obj=models.User.objects.filter(pk=user_id).first()
+    book_list=models.Book.objects.all()
+
+    return render(request, 'book_manage.html', locals())
+
+
+def insert_book(request,user_id):
+    if request.method=='POST':
+        title=request.POST.get('title')
+        price=request.POST.get('price')
+        publish_date=request.POST.get('publish_date')
+        publish_id=request.POST.get('publish')   #############
+        author_id=request.POST.get('author')
+
+        print(title,price,publish_date,publish_id,author_id)
+
+        new_book_obj=models.Book.objects.create(title=title,price=price,publish_date=publish_date,publish_id=publish_id)
+        new_book_obj.authors.add(*author_id)   # author_id为多选  故打散
+
+
+        return redirect(reverse('book_manage',args=(user_id,)))
+
+    user_obj=models.User.objects.filter(id=user_id).first()
+    book_list = models.Book.objects.all()
+    author_list=models.Author.objects.all()
+    publish_list = models.Publish.objects.all()
+    return render(request, 'insert_book.html',locals())
+
+
+def delete_book(request,user_id,book_id):
+    models.Book.objects.filter(pk=book_id).delete()
+    return redirect(reverse('book_manage',args=(user_id)))
+
+
+def edit_book(request,user_id,book_id):
+    book_obj = models.Book.objects.filter(id=book_id).first()
+
+    if request.method == 'POST':
+        title=request.POST.get('title')
+        price=request.POST.get('price')
+        publish_date=request.POST.get('publish_date')
+        publish_id=request.POST.get('publish')
+        author_list=request.POST.getlist('author')  #多!!!!!!!!!!!
+        book_new_obj=models.Book.objects.filter(pk=book_id).update(title=title,price=price,publish_date=publish_date,publish_id=publish_id)
+
+        book_obj.authors.set(author_list)
+        return redirect(reverse('book_manage',args=(user_id,)))
+
+    user_obj=models.User.objects.filter(id=user_id).first()
+
+    publish_list=models.Publish.objects.all()
+    author_list = models.Author.objects.all()
+    return render(request,'edit_book.html',locals())
+
+
+@login_auth
+def home(request, user_id):
+    if request.COOKIES.get('name'):
+        user_obj = models.User.objects.filter(id=user_id).first()
+        return render(request, 'home.html', {'user_obj': user_obj})
+    return redirect('/')
+
+
+#--------------作者------------------
+@login_auth
+def author_manage(request,user_id):
+    # print(111111111111)
+    user_obj=models.User.objects.filter(id=user_id).first()
+    author_list=models.Author.objects.all()
+    print(user_obj)
+    print(author_list)
+    return render(request,'author_manage.html',locals())
